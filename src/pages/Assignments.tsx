@@ -1,6 +1,16 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { supabase, Assignment, Submission } from '../lib/supabase'
+import { db, storage, Assignment, Submission } from '../lib/firebase'
+import { 
+  collection, 
+  query, 
+  orderBy, 
+  getDocs, 
+  where,
+  addDoc,
+  onSnapshot
+} from 'firebase/firestore'
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import FileUpload from '../components/FileUpload'
 import { 
   Download, 
@@ -23,23 +33,41 @@ export default function Assignments() {
   const [showUploadModal, setShowUploadModal] = useState(false)
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    if (profile?.is_approved) {
+      fetchData()
+      setupRealTimeListeners()
+    } else {
+      setLoading(false)
+    }
+  }, [profile])
 
   const fetchData = async () => {
     try {
-      const { data: assignmentsData } = await supabase
-        .from('assignments')
-        .select('*')
-        .order('created_at', { ascending: false })
+      // Fetch assignments
+      const assignmentsQuery = query(
+        collection(db, 'assignments'),
+        where('status', '==', 'active'),
+        orderBy('created_at', 'desc')
+      )
+      const assignmentsSnapshot = await getDocs(assignmentsQuery)
+      const assignmentsData = assignmentsSnapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      })) as Assignment[]
 
-      const { data: submissionsData } = await supabase
-        .from('submissions')
-        .select('*')
-        .eq('worker_id', profile?.id)
+      // Fetch user's submissions
+      const submissionsQuery = query(
+        collection(db, 'submissions'),
+        where('worker_id', '==', profile?.id)
+      )
+      const submissionsSnapshot = await getDocs(submissionsQuery)
+      const submissionsData = submissionsSnapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      })) as Submission[]
 
-      setAssignments(assignmentsData || [])
-      setSubmissions(submissionsData || [])
+      setAssignments(assignmentsData)
+      setSubmissions(submissionsData)
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -47,25 +75,64 @@ export default function Assignments() {
     }
   }
 
+  const setupRealTimeListeners = () => {
+    if (!profile?.id) return
+
+    // Real-time listener for assignments
+    const assignmentsQuery = query(
+      collection(db, 'assignments'),
+      where('status', '==', 'active'),
+      orderBy('created_at', 'desc')
+    )
+    
+    const unsubscribeAssignments = onSnapshot(assignmentsQuery, (snapshot) => {
+      const assignmentsData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      })) as Assignment[]
+      setAssignments(assignmentsData)
+    })
+
+    // Real-time listener for submissions
+    const submissionsQuery = query(
+      collection(db, 'submissions'),
+      where('worker_id', '==', profile.id)
+    )
+    
+    const unsubscribeSubmissions = onSnapshot(submissionsQuery, (snapshot) => {
+      const submissionsData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      })) as Submission[]
+      setSubmissions(submissionsData)
+    })
+
+    // Cleanup function
+    return () => {
+      unsubscribeAssignments()
+      unsubscribeSubmissions()
+    }
+  }
+
   const handleSubmitWork = async () => {
-    if (!uploadFile || !selectedAssignment) return
+    if (!uploadFile || !selectedAssignment || !profile) return
 
     setSubmitting(true)
     try {
-      // In a real app, you'd upload the file to storage first
-      const { error } = await supabase
-        .from('submissions')
-        .insert([{
-          assignment_id: selectedAssignment.id,
-          worker_id: profile?.id,
-          file_url: `uploads/${uploadFile.name}`, // Mock URL
-          status: 'pending'
-        }])
+      // Upload file to Firebase Storage
+      const storageRef = ref(storage, `submissions/${Date.now()}-${uploadFile.name}`)
+      await uploadBytes(storageRef, uploadFile)
+      const fileURL = await getDownloadURL(storageRef)
 
-      if (error) throw error
+      // Create submission document
+      await addDoc(collection(db, 'submissions'), {
+        assignment_id: selectedAssignment.id,
+        worker_id: profile.id,
+        file_url: fileURL,
+        status: 'pending',
+        submitted_at: new Date().toISOString()
+      })
 
-      // Refresh submissions
-      fetchData()
       setShowUploadModal(false)
       setUploadFile(null)
       setSelectedAssignment(null)
@@ -78,6 +145,19 @@ export default function Assignments() {
 
   const getSubmissionStatus = (assignmentId: string) => {
     return submissions.find(s => s.assignment_id === assignmentId)
+  }
+
+  if (!profile?.is_approved) {
+    return (
+      <div className="text-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Pending Approval</h2>
+        <p className="text-gray-600 max-w-md mx-auto">
+          Your account is currently under review. You'll be able to access assignments once 
+          an administrator approves your account.
+        </p>
+      </div>
+    )
   }
 
   if (loading) {

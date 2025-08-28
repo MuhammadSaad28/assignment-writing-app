@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { supabase, Assignment, Submission } from '../lib/supabase'
+import { db, Assignment, Submission } from '../lib/firebase'
+import { 
+  collection, 
+  query, 
+  orderBy, 
+  getDocs, 
+  where,
+  onSnapshot
+} from 'firebase/firestore'
 import { 
   Briefcase, 
   DollarSign, 
@@ -19,6 +27,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (profile?.is_approved) {
       fetchData()
+      setupRealTimeListeners()
     } else {
       setLoading(false)
     }
@@ -27,27 +36,75 @@ export default function Dashboard() {
   const fetchData = async () => {
     try {
       // Fetch assignments
-      const { data: assignmentsData } = await supabase
-        .from('assignments')
-        .select('*')
-        .order('created_at', { ascending: false })
+      const assignmentsQuery = query(
+        collection(db, 'assignments'),
+        where('status', '==', 'active'),
+        orderBy('created_at', 'desc')
+      )
+      const assignmentsSnapshot = await getDocs(assignmentsQuery)
+      const assignmentsData = assignmentsSnapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      })) as Assignment[]
 
       // Fetch user's submissions
-      const { data: submissionsData } = await supabase
-        .from('submissions')
-        .select(`
-          *,
-          assignment:assignments(*)
-        `)
-        .eq('worker_id', profile?.id)
-        .order('submitted_at', { ascending: false })
+      const submissionsQuery = query(
+        collection(db, 'submissions'),
+        where('worker_id', '==', profile?.id),
+        orderBy('submitted_at', 'desc')
+      )
+      const submissionsSnapshot = await getDocs(submissionsQuery)
+      const submissionsData = submissionsSnapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      })) as Submission[]
 
-      setAssignments(assignmentsData || [])
-      setSubmissions(submissionsData || [])
+      setAssignments(assignmentsData)
+      setSubmissions(submissionsData)
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const setupRealTimeListeners = () => {
+    if (!profile?.id) return
+
+    // Real-time listener for assignments
+    const assignmentsQuery = query(
+      collection(db, 'assignments'),
+      where('status', '==', 'active'),
+      orderBy('created_at', 'desc')
+    )
+    
+    const unsubscribeAssignments = onSnapshot(assignmentsQuery, (snapshot) => {
+      const assignmentsData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      })) as Assignment[]
+      setAssignments(assignmentsData)
+    })
+
+    // Real-time listener for submissions
+    const submissionsQuery = query(
+      collection(db, 'submissions'),
+      where('worker_id', '==', profile.id),
+      orderBy('submitted_at', 'desc')
+    )
+    
+    const unsubscribeSubmissions = onSnapshot(submissionsQuery, (snapshot) => {
+      const submissionsData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      })) as Submission[]
+      setSubmissions(submissionsData)
+    })
+
+    // Cleanup function
+    return () => {
+      unsubscribeAssignments()
+      unsubscribeSubmissions()
     }
   }
 
@@ -168,7 +225,7 @@ export default function Dashboard() {
             {submissions.slice(0, 5).map((submission) => (
               <div key={submission.id} className="p-6">
                 <h4 className="font-semibold text-gray-900 mb-2">
-                  {submission.assignment?.title}
+                  {submission.assignment?.title || 'Assignment'}
                 </h4>
                 <div className="flex justify-between items-center">
                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${

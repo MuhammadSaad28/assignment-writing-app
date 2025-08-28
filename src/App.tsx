@@ -8,6 +8,7 @@ import Assignments from './pages/Assignments'
 import Withdrawals from './pages/Withdrawals'
 import Support from './pages/Support'
 import AdminDashboard from './pages/admin/AdminDashboard'
+import AssignmentsManagement from './pages/admin/AssignmentsManagement'
 
 function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) {
   const { user, profile, loading } = useAuth()
@@ -47,6 +48,7 @@ function AppRoutes() {
       <Route path="/" element={user && profile ? <Navigate to={profile.role === 'admin' ? '/admin' : '/dashboard'} replace /> : <Landing />} />
       <Route path="/login" element={user && profile ? <Navigate to={profile.role === 'admin' ? '/admin' : '/dashboard'} replace /> : <Login />} />
       
+      {/* User Routes */}
       <Route path="/dashboard" element={
         <ProtectedRoute>
           <Dashboard />
@@ -71,9 +73,16 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
+      {/* Admin Routes */}
       <Route path="/admin" element={
         <ProtectedRoute adminOnly>
           <AdminDashboard />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/admin/assignments" element={
+        <ProtectedRoute adminOnly>
+          <AssignmentsManagement />
         </ProtectedRoute>
       } />
       
@@ -81,16 +90,16 @@ function AppRoutes() {
         <ProtectedRoute adminOnly>
           <div className="text-center py-12">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">User Management</h2>
-            <p className="text-gray-600">Coming soon...</p>
+            <p className="text-gray-600">User management is available in the main admin dashboard.</p>
           </div>
         </ProtectedRoute>
       } />
       
-      <Route path="/admin/assignments" element={
+      <Route path="/admin/submissions" element={
         <ProtectedRoute adminOnly>
           <div className="text-center py-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Assignment Management</h2>
-            <p className="text-gray-600">Coming soon...</p>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Submission Management</h2>
+            <p className="text-gray-600">Submission management is available in the main admin dashboard.</p>
           </div>
         </ProtectedRoute>
       } />
@@ -99,7 +108,7 @@ function AppRoutes() {
         <ProtectedRoute adminOnly>
           <div className="text-center py-12">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Withdrawal Management</h2>
-            <p className="text-gray-600">Coming soon...</p>
+            <p className="text-gray-600">Withdrawal management is available in the main admin dashboard.</p>
           </div>
         </ProtectedRoute>
       } />

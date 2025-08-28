@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Assignment Writing | Registration</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-storage.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+  <div class="max-w-3xl mx-auto p-6">
+    <div class="bg-white shadow-xl rounded-2xl p-8">
+      <h1 class="text-2xl font-bold text-center mb-4">🚀 Start Your Work</h1>
+      <p class="text-center text-gray-600 mb-6">
+        To start working, please sign up and pay the registration fee of <b>2000 PKR</b>.
+      </p>
+
+      <form id="signupForm" class="space-y-4">
+        <input class="w-full p-3 border rounded-xl" placeholder="Full Name" name="name" required />
+        <input class="w-full p-3 border rounded-xl" placeholder="Father's Name" name="fatherName" required />
+        <input type="email" class="w-full p-3 border rounded-xl" placeholder="Email" name="email" required />
+        <input class="w-full p-3 border rounded-xl" placeholder="WhatsApp Number" name="whatsapp" required />
+        <input class="w-full p-3 border rounded-xl" placeholder="City" name="city" required />
+        <input class="w-full p-3 border rounded-xl" placeholder="Qualification" name="qualification" required />
+        <input class="w-full p-3 border rounded-xl" placeholder="Current Job" name="job" required />
+        <input type="password" class="w-full p-3 border rounded-xl" placeholder="Password" name="password" required minlength="6" />
+
+        <div class="bg-gray-50 p-4 rounded-xl">
+          <p class="font-semibold">💳 Payment Details:</p>
+          <p>Easypaisa: <b>03XXXXXXXXX</b></p>
+          <p>JazzCash: <b>03XXXXXXXXX</b></p>
+          <p class="text-sm text-gray-500">Send 2000 PKR and upload screenshot below.</p>
+        </div>
+
+        <input type="file" id="screenshot" class="w-full p-3 border rounded-xl" required accept="image/*" />
+
+        <button type="submit"
+          class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition">
+          Submit Registration
+        </button>
+      </form>
+
+      <p id="msg" class="mt-4 text-center text-sm"></p>
+    </div>
+  </div>
+
+  <script>
+    // Firebase configuration - Replace with your actual config
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_AUTH_DOMAIN",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_STORAGE_BUCKET",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const storage = firebase.storage();
+    const auth = firebase.auth();
+
+    document.getElementById("signupForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById("msg");
+      msg.textContent = "Uploading... please wait.";
+
+      try {
+        const form = new FormData(e.target);
+        const file = document.getElementById("screenshot").files[0];
+        
+        // Upload payment screenshot
+        const storageRef = storage.ref("payments/" + Date.now() + "-" + file.name);
+        await storageRef.put(file);
+        const fileURL = await storageRef.getDownloadURL();
+
+        // Create user account
+        const userCredential = await auth.createUserWithEmailAndPassword(
+          form.get("email"),
+          form.get("password")
+        );
+
+        // Create profile document
+        await db.collection("profiles").doc(userCredential.user.uid).set({
+          full_name: form.get("name"),
+          father_name: form.get("fatherName"),
+          email: form.get("email"),
+          phone: form.get("whatsapp"),
+          city: form.get("city"),
+          qualification: form.get("qualification"),
+          job: form.get("job"),
+          payment_screenshot_url: fileURL,
+          role: 'worker',
+          is_approved: false,
+          total_earnings: 0,
+          created_at: new Date().toISOString()
+        });
+
+        // Also save to registrations collection for admin review
+        await db.collection("registrations").add({
+          name: form.get("name"),
+          fatherName: form.get("fatherName"),
+          email: form.get("email"),
+          whatsapp: form.get("whatsapp"),
+          city: form.get("city"),
+          qualification: form.get("qualification"),
+          job: form.get("job"),
+          screenshot: fileURL,
+          status: "pending",
+          createdAt: new Date().toISOString()
+        });
+
+        msg.textContent = "✅ Registration submitted! We'll verify payment and send login details via email.";
+        e.target.reset();
+      } catch (error) {
+        console.error(error);
+        msg.textContent = "❌ Error: " + error.message;
+      }
+    });
+  </script>
+</body>
+</html>

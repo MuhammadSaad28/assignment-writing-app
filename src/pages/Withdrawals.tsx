@@ -1,6 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { supabase, Withdrawal } from '../lib/supabase'
+import { db, Withdrawal } from '../lib/firebase'
+import { 
+  collection, 
+  query, 
+  orderBy, 
+  getDocs, 
+  where,
+  addDoc,
+  onSnapshot
+} from 'firebase/firestore'
 import { 
   DollarSign, 
   Clock, 
@@ -22,22 +31,56 @@ export default function Withdrawals() {
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    fetchWithdrawals()
-  }, [])
+    if (profile?.is_approved) {
+      fetchWithdrawals()
+      setupRealTimeListeners()
+    } else {
+      setLoading(false)
+    }
+  }, [profile])
 
   const fetchWithdrawals = async () => {
     try {
-      const { data } = await supabase
-        .from('withdrawals')
-        .select('*')
-        .eq('worker_id', profile?.id)
-        .order('requested_at', { ascending: false })
+      const withdrawalsQuery = query(
+        collection(db, 'withdrawals'),
+        where('worker_id', '==', profile?.id),
+        orderBy('requested_at', 'desc')
+      )
+      const withdrawalsSnapshot = await getDocs(withdrawalsQuery)
+      const withdrawalsData = withdrawalsSnapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      })) as Withdrawal[]
 
-      setWithdrawals(data || [])
+      setWithdrawals(withdrawalsData)
     } catch (error) {
       console.error('Error fetching withdrawals:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const setupRealTimeListeners = () => {
+    if (!profile?.id) return
+
+    // Real-time listener for withdrawals
+    const withdrawalsQuery = query(
+      collection(db, 'withdrawals'),
+      where('worker_id', '==', profile.id),
+      orderBy('requested_at', 'desc')
+    )
+    
+    const unsubscribeWithdrawals = onSnapshot(withdrawalsQuery, (snapshot) => {
+      const withdrawalsData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      })) as Withdrawal[]
+      setWithdrawals(withdrawalsData)
+    })
+
+    // Cleanup function
+    return () => {
+      unsubscribeWithdrawals()
     }
   }
 
@@ -46,18 +89,15 @@ export default function Withdrawals() {
     setSubmitting(true)
 
     try {
-      const { error } = await supabase
-        .from('withdrawals')
-        .insert([{
-          worker_id: profile?.id,
-          amount: parseFloat(requestForm.amount),
-          payment_method: requestForm.paymentMethod,
-          payment_details: requestForm.paymentDetails
-        }])
+      await addDoc(collection(db, 'withdrawals'), {
+        worker_id: profile?.id,
+        amount: parseFloat(requestForm.amount),
+        payment_method: requestForm.paymentMethod,
+        payment_details: requestForm.paymentDetails,
+        status: 'pending',
+        requested_at: new Date().toISOString()
+      })
 
-      if (error) throw error
-
-      fetchWithdrawals()
       setShowRequestModal(false)
       setRequestForm({ amount: '', paymentMethod: 'easypaisa', paymentDetails: '' })
     } catch (error) {
@@ -71,6 +111,19 @@ export default function Withdrawals() {
   const pendingAmount = withdrawals
     .filter(w => w.status === 'pending')
     .reduce((sum, w) => sum + w.amount, 0)
+
+  if (!profile?.is_approved) {
+    return (
+      <div className="text-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Pending Approval</h2>
+        <p className="text-gray-600 max-w-md mx-auto">
+          Your account is currently under review. You'll be able to access withdrawals once 
+          an administrator approves your account.
+        </p>
+      </div>
+    )
+  }
 
   if (loading) {
     return (

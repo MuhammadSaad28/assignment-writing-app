@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { storage } from '../lib/firebase'
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { CheckCircle, Upload, DollarSign, Users } from 'lucide-react'
 
 export default function Landing() {
@@ -8,8 +10,12 @@ export default function Landing() {
   const [isRegistering, setIsRegistering] = useState(false)
   const [formData, setFormData] = useState({
     fullName: '',
+    fatherName: '',
     email: '',
-    phone: '',
+    whatsapp: '',
+    city: '',
+    qualification: '',
+    job: '',
     password: '',
     paymentScreenshot: null as File | null
   })
@@ -23,12 +29,26 @@ export default function Landing() {
     setError('')
 
     try {
-      // For demo purposes, we'll skip file upload and just register
+      let screenshotUrl = null
+      
+      // Upload payment screenshot if provided
+      if (formData.paymentScreenshot) {
+        const storageRef = ref(storage, `payments/${Date.now()}-${formData.paymentScreenshot.name}`)
+        await uploadBytes(storageRef, formData.paymentScreenshot)
+        screenshotUrl = await getDownloadURL(storageRef)
+      }
+
+      // Register user with Firebase
       await signUp(formData.email, formData.password, {
         fullName: formData.fullName,
-        phone: formData.phone,
-        paymentScreenshot: null // In real app, upload file to storage first
+        phone: formData.whatsapp,
+        paymentScreenshot: screenshotUrl,
+        fatherName: formData.fatherName,
+        city: formData.city,
+        qualification: formData.qualification,
+        job: formData.job
       })
+      
       setSuccess(true)
     } catch (err: any) {
       setError(err.message || 'Registration failed')
@@ -120,7 +140,7 @@ export default function Landing() {
             <div className="bg-blue-50 p-6 rounded-lg">
               <h3 className="font-bold text-gray-900 mb-2">Payment Account for Registration</h3>
               <p className="text-sm text-gray-600 mb-2">
-                Send registration fee to complete your account setup:
+                Send registration fee of <strong>2000 PKR</strong> to complete your account setup:
               </p>
               <div className="bg-white p-3 rounded border">
                 <p className="font-mono text-sm"><strong>EasyPaisa:</strong> 03XX-XXXXXXX</p>
@@ -151,6 +171,19 @@ export default function Landing() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Father's Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.fatherName}
+                      onChange={(e) => setFormData({ ...formData, fatherName: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Email Address
                     </label>
                     <input
@@ -164,13 +197,52 @@ export default function Landing() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Phone Number
+                      WhatsApp Number
                     </label>
                     <input
                       type="tel"
                       required
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      value={formData.whatsapp}
+                      onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      City
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.city}
+                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Qualification
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.qualification}
+                      onChange={(e) => setFormData({ ...formData, qualification: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Current Job
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.job}
+                      onChange={(e) => setFormData({ ...formData, job: e.target.value })}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -196,6 +268,7 @@ export default function Landing() {
                     <input
                       type="file"
                       accept="image/*"
+                      required
                       onChange={handleFileChange}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
