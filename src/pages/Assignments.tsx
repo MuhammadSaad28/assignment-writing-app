@@ -47,13 +47,14 @@ export default function Assignments() {
       const assignmentsQuery = query(
         collection(db, 'assignments'),
         where('status', '==', 'active'),
-        orderBy('created_at', 'desc')
       )
       const assignmentsSnapshot = await getDocs(assignmentsQuery)
       const assignmentsData = assignmentsSnapshot.docs.map(doc => ({
         ...doc.data(),
         id: doc.id
       })) as Assignment[]
+
+      console.log(assignmentsData)
 
       // Fetch user's submissions
       const submissionsQuery = query(
