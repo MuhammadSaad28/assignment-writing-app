@@ -17,7 +17,7 @@ export default function Landing() {
     qualification: '',
     job: '',
     password: '',
-    paymentScreenshot: null as File | null
+    // paymentScreenshot: null as File | null
   })
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -32,17 +32,17 @@ export default function Landing() {
       let screenshotUrl = null
       
       // Upload payment screenshot if provided
-      if (formData.paymentScreenshot) {
-        const storageRef = ref(storage, `payments/${Date.now()}-${formData.paymentScreenshot.name}`)
-        await uploadBytes(storageRef, formData.paymentScreenshot)
-        screenshotUrl = await getDownloadURL(storageRef)
-      }
+      // if (formData.paymentScreenshot) {
+      //   const storageRef = ref(storage, `payments/${Date.now()}-${formData.paymentScreenshot.name}`)
+      //   await uploadBytes(storageRef, formData.paymentScreenshot)
+      //   screenshotUrl = await getDownloadURL(storageRef)
+      // }
 
       // Register user with Firebase
       await signUp(formData.email, formData.password, {
         fullName: formData.fullName,
         phone: formData.whatsapp,
-        paymentScreenshot: screenshotUrl,
+        // paymentScreenshot: screenshotUrl,
         fatherName: formData.fatherName,
         city: formData.city,
         qualification: formData.qualification,
@@ -57,10 +57,10 @@ export default function Landing() {
     }
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null
-    setFormData({ ...formData, paymentScreenshot: file })
-  }
+  // const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  //   const file = e.target.files?.[0] || null
+  //   setFormData({ ...formData, paymentScreenshot: file })
+  // }
 
   if (success) {
     return (
@@ -261,7 +261,7 @@ export default function Landing() {
                     />
                   </div>
 
-                  <div>
+                  {/* <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Payment Screenshot
                     </label>
@@ -275,7 +275,7 @@ export default function Landing() {
                     <p className="text-xs text-gray-500 mt-1">
                       Upload screenshot of payment to the account above
                     </p>
-                  </div>
+                  </div> */}
 
                   {error && (
                     <p className="text-red-600 text-sm">{error}</p>
